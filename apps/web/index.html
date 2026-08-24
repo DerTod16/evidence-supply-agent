@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Evidence Supply Agent</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main>
+      <header><p class="eyebrow">EVIDENCE-FIRST PROCUREMENT RESEARCH</p><h1>Evidence Supply Agent</h1><p>把不确定的供应商线索，变成可追溯、待核验的研究结果。</p></header>
+      <section class="panel controls">
+        <label>采购问题<textarea id="question">推荐符合 FSSC 22000、交期不超过 20 天的 plant-protein 供应商。</textarea></label>
+        <div class="grid">
+          <label>品类<input id="category" value="plant-protein" /></label>
+          <label>最高单价 (USD/kg)<input id="price" type="number" value="6.5" /></label>
+          <label>最长交期 (天)<input id="leadTime" type="number" value="20" /></label>
+          <label>认证（逗号分隔）<input id="certs" value="FSSC 22000" /></label>
+        </div>
+        <button id="askButton">生成带证据的候选清单</button>
+      </section>
+      <section id="status" aria-live="polite"></section>
+      <section id="result" class="results"></section>
+      <section class="panel footnote"><strong>演示边界：</strong>所有供应商和资料均为合成示例；候选状态并不等同于采购批准。</section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
