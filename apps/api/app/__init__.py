@@ -1,1 +1,1 @@
-"""Evidence Supply Agent API."""
+"""evidence-sourcing-agent 应用包。"""

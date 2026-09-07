@@ -1,0 +1,58 @@
+{
+  "products": [
+    {
+      "id": "real-stand-a",
+      "platform": "1688",
+      "title": "铝合金桌面手机支架（真实导入示例）",
+      "category": "手机支架",
+      "supplier": "示例档口 A",
+      "region": "广东深圳",
+      "price_cny": 3.8,
+      "market_ref_price_cny": 15.9,
+      "min_order_qty": 20,
+      "est_monthly_sales": 4100,
+      "drop_ship_supported": true,
+      "image_count": 9,
+      "status": "verified",
+      "source_document_ids": ["real-doc-a-offer"]
+    },
+    {
+      "id": "real-organizer-b",
+      "platform": "yiwugo",
+      "title": "桌面抽屉收纳盒（真实导入示例）",
+      "category": "桌面收纳",
+      "supplier": "示例档口 B",
+      "region": "浙江金华",
+      "price_cny": 7.5,
+      "market_ref_price_cny": 21.0,
+      "min_order_qty": 10,
+      "est_monthly_sales": null,
+      "drop_ship_supported": false,
+      "image_count": 4,
+      "status": "lead",
+      "source_document_ids": ["real-doc-b-catalog"]
+    }
+  ],
+  "documents": [
+    {
+      "id": "real-doc-a-offer",
+      "product_id": "real-stand-a",
+      "source_type": "offer",
+      "title": "1688 offer 快照（示例）",
+      "excerpt": "offer 页快照：3.8 元/件，20 件起批，近 30 天成交 4100+。",
+      "authority": "platform",
+      "url": "https://detail.1688.com/offer/replace-with-real-url.html",
+      "updated_at": "2026-09-02"
+    },
+    {
+      "id": "real-doc-b-catalog",
+      "product_id": "real-organizer-b",
+      "source_type": "offer",
+      "title": "义乌购目录条目（示例）",
+      "excerpt": "仅目录条目：无动销与资质证据，档口核验未完成。",
+      "authority": "platform",
+      "url": "https://www.yiwugo.com/replace-with-real-url.html",
+      "updated_at": "2026-08-20"
+    }
+  ]
+}

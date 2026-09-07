@@ -3,25 +3,46 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Evidence Supply Agent</title>
+    <title>Evidence Sourcing Agent</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main>
-      <header><p class="eyebrow">EVIDENCE-FIRST PROCUREMENT RESEARCH</p><h1>Evidence Supply Agent</h1><p>把不确定的供应商线索，变成可追溯、待核验的研究结果。</p></header>
+      <header>
+        <p class="eyebrow">EVIDENCE-FIRST SOURCING FOR E-COMMERCE SELLERS</p>
+        <h1>Evidence Sourcing Agent</h1>
+        <p>把不确定的货源线索，变成可追溯、带评分、待核验的选品候选。</p>
+      </header>
+
       <section class="panel controls">
-        <label>采购问题<textarea id="question">推荐符合 FSSC 22000、交期不超过 20 天的 plant-protein 供应商。</textarea></label>
+        <label>选品问题
+          <textarea id="question">找手机支架货源，预算内尽量低价，要能一件代发。</textarea>
+        </label>
         <div class="grid">
-          <label>品类<input id="category" value="plant-protein" /></label>
-          <label>最高单价 (USD/kg)<input id="price" type="number" value="6.5" /></label>
-          <label>最长交期 (天)<input id="leadTime" type="number" value="20" /></label>
-          <label>认证（逗号分隔）<input id="certs" value="FSSC 22000" /></label>
+          <label>目标类目<input id="category" value="手机支架" placeholder="如 桌面收纳" /></label>
+          <label>最高拿货价 (¥/件)<input id="price" type="number" value="4" /></label>
+          <label>期望毛利 ≥ (¥/件)<input id="profit" type="number" value="8" placeholder="可选" /></label>
+          <label>最大起批量 (件)<input id="minOrder" type="number" value="100" placeholder="可选" /></label>
         </div>
-        <button id="askButton">生成带证据的候选清单</button>
+        <div class="grid options">
+          <label class="check"><input id="dropShip" type="checkbox" checked /> 必须支持一件代发</label>
+          <fieldset class="check">
+            <legend>目标平台（不选则不限）</legend>
+            <label><input type="checkbox" name="platform" value="1688" checked /> 1688</label>
+            <label><input type="checkbox" name="platform" value="yiwugo" /> 义乌购</label>
+            <label><input type="checkbox" name="platform" value="pdd-wholesale" /> 拼多多批发</label>
+          </fieldset>
+        </div>
+        <button id="askButton">生成带证据的货源候选</button>
       </section>
+
       <section id="status" aria-live="polite"></section>
       <section id="result" class="results"></section>
-      <section class="panel footnote"><strong>演示边界：</strong>所有供应商和资料均为合成示例；候选状态并不等同于采购批准。</section>
+
+      <section class="panel footnote">
+        <strong>演示边界：</strong>内置资料为合成示例；候选状态并不等同下单/上架批准。
+        真实数据请通过 <code>POST /api/dataset/import</code> 导入（格式见 examples/dataset.example.json）。
+      </section>
     </main>
     <script src="/static/app.js"></script>
   </body>

@@ -1,121 +1,124 @@
+"""编排边界：检索 → 服务端评分裁决 → 可选 LLM 摘要（受约束）→ 引用与审计。
+
+这是全系统唯一可替换的编排点：
+- demo（默认，离线）：纯确定性回答，不调用任何外部服务；
+- remote：评分/状态/证据仍由服务端裁决，LLM 仅负责受 JSON Schema 约束的摘要；
+  LLM 失败自动降级为确定性回答，不影响可用性。
+"""
+
 from __future__ import annotations
 
-import re
 from collections import Counter
 
-from .data import DOCUMENTS, SUPPLIERS
-from .models import AskRequest, AskResponse, Citation, Recommendation, Requirement, SourceDocument, Supplier
+from .llm import LLMError, generate_summary, llm_enabled
+from .models import (
+    PLATFORM_LABELS,
+    AskRequest,
+    AskResponse,
+    Citation,
+    Recommendation,
+)
+from .retrieval import retrieve_documents
+from .scorecard import score_product
+from .store import store
 
+WARNING_REAL_DILIGENCE = "上架前务必自行核验：档口主体、真实库存、售后、物流时效与图片版权，勿仅凭站内快照下单。"
+WARNING_LEAD = "候选中包含「发现线索」状态的货源：主体、资质、真实库存与动销尚未核验，请勿直接下单铺货。"
+WARNING_PENDING = "候选中包含「待人工复核」货源：质检/现场核验未闭环，确认前请先人工复核。"
 
-def _terms(text: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9]+", text.lower()))
-
-
-def retrieve_documents(question: str, requirement: Requirement, limit: int = 6) -> list[SourceDocument]:
-    query = _terms(question + " " + (requirement.category or "") + " " + " ".join(requirement.required_certifications))
-    ranked: list[tuple[int, SourceDocument]] = []
-    for document in DOCUMENTS:
-        score = len(query.intersection(_terms(document.title + " " + document.excerpt)))
-        if requirement.category and requirement.category in next(s for s in SUPPLIERS if s.id == document.supplier_id).categories:
-            score += 3
-        ranked.append((score, document))
-    return [document for score, document in sorted(ranked, key=lambda item: (-item[0], item[1].id))[:limit] if score > 0]
-
-
-def _score_supplier(supplier: Supplier, requirement: Requirement) -> tuple[int, list[str], list[str]]:
-    score = 40
-    reasons: list[str] = []
-    missing: list[str] = []
-    if requirement.category:
-        if requirement.category in supplier.categories:
-            score += 20
-            reasons.append(f"产品类别匹配：{requirement.category}")
-        else:
-            score -= 35
-            missing.append(f"目录中未证明供应 {requirement.category}")
-    if requirement.region:
-        if requirement.region.lower() == supplier.region.lower():
-            score += 10
-            reasons.append(f"区域匹配：{supplier.region}")
-        else:
-            score -= 4
-    if requirement.max_unit_price_usd:
-        if supplier.unit_price_usd <= requirement.max_unit_price_usd:
-            score += 12
-            reasons.append(f"演示报价 ${supplier.unit_price_usd:.2f}/kg 在预算内")
-        else:
-            score -= 12
-            missing.append(f"演示报价 ${supplier.unit_price_usd:.2f}/kg 高于预算")
-    if requirement.max_lead_time_days:
-        if supplier.lead_time_days <= requirement.max_lead_time_days:
-            score += 10
-            reasons.append(f"标示交期 {supplier.lead_time_days} 天符合要求")
-        else:
-            score -= 10
-            missing.append(f"标示交期 {supplier.lead_time_days} 天超出要求")
-    required = {item.lower() for item in requirement.required_certifications}
-    actual = {item.lower() for item in supplier.certifications}
-    unsupported = sorted(required - actual)
-    if unsupported:
-        score -= 20
-        missing.append("缺少认证证据：" + ", ".join(unsupported))
-    elif required:
-        score += 12
-        reasons.append("所需认证已在演示资料中出现")
-    if supplier.status == "verified":
-        score += 12
-        reasons.append("资料状态为已验证")
-    elif supplier.status == "lead":
-        score -= 18
-        missing.append("仅为发现线索，尚未完成实体、合规和库存核验")
-    else:
-        score -= 6
-        missing.append("仍需人工质量复核")
-    return max(0, min(100, score)), reasons, missing
+_DEMO_ANSWER = "已基于演示资料生成候选排序。结果用于研究货源与人工选品，不构成下单或上架批准。"
+_DEMO_WARNING = "当前为演示样本数据（合成示例），不代表任何真实商家；请导入自有货源资料后再做真实决策。"
 
 
 def recommend(request: AskRequest) -> AskResponse:
-    retrieved = retrieve_documents(request.question, request.requirement)
-    docs_by_supplier: dict[str, list[SourceDocument]] = {}
-    for document in retrieved:
-        docs_by_supplier.setdefault(document.supplier_id, []).append(document)
+    products = store.products
+    documents = store.documents
+    product_by_id = store.product_index()
+
+    retrieved = retrieve_documents(request.question, request.requirement, documents, product_by_id)
+    docs_by_product: dict[str, list[Citation]] = {}
+    for doc in retrieved:
+        citation = Citation(
+            document_id=doc.id,
+            title=doc.title,
+            excerpt=doc.excerpt,
+            authority=doc.authority,
+            source_type=doc.source_type,
+            url=doc.url,
+        )
+        docs_by_product.setdefault(doc.product_id, []).append(citation)
 
     candidates: list[Recommendation] = []
-    for supplier in SUPPLIERS:
-        score, reasons, missing = _score_supplier(supplier, request.requirement)
-        supplier_docs = docs_by_supplier.get(supplier.id, [])
-        if score < 25 and not supplier_docs:
+    for product in products:
+        if request.requirement.platforms and product.platform not in request.requirement.platforms:
             continue
-        citations = [Citation(document_id=doc.id, title=doc.title, excerpt=doc.excerpt, authority=doc.authority) for doc in supplier_docs]
+        score, reasons, missing = score_product(product, request.requirement)
+        citations = docs_by_product.get(product.id, [])
+        if score < 25 and not citations:
+            continue
         if not citations:
-            missing.append("本次检索未返回可引用的支持材料")
+            missing.append("本次检索未返回可引用的支持资料（评分仅供参考，须人工补证）")
         candidates.append(Recommendation(
-            supplier_id=supplier.id,
-            supplier_name=supplier.name,
+            product_id=product.id,
+            product_title=product.title,
+            supplier=product.supplier,
+            platform=PLATFORM_LABELS.get(product.platform, product.platform),
+            price_cny=product.price_cny,
+            min_order_qty=product.min_order_qty,
             score=score,
-            verification_status=supplier.status,
+            verification_status=product.status,
             why=reasons or ["与当前筛选条件的直接匹配较少"],
             missing_evidence=missing,
             citations=citations,
         ))
-    candidates.sort(key=lambda item: (-item.score, item.supplier_name))
+
+    candidates.sort(key=lambda item: (-item.score, item.product_id))
     candidates = candidates[:3]
+
+    warnings = build_warnings(candidates)
+    llm_used, llm_error, answer = compose_answer(request, candidates)
+
     status_counts = Counter(item.verification_status for item in candidates)
-    answer = "已基于演示资料生成候选排序。结果用于研究与人工尽调，不构成采购批准。"
-    warnings = [
-        "本仓库仅含合成演示资料；不得将其视作真实供应商推荐。",
-        "任何采购决定前应核验实体、证书有效性、报价、库存、物流与合规。",
-    ]
-    if status_counts.get("lead"):
-        warnings.append("候选中包含发现线索（lead），应在进入比价前完成供应商尽调。")
     return AskResponse(
         answer=answer,
         recommendations=candidates,
         warnings=warnings,
         audit={
-            "retrieval_strategy": "lexical demo retrieval with category metadata boost",
+            "retrieval_strategy": "lexical demo retrieval with category/platform metadata boost",
             "retrieved_document_ids": [doc.id for doc in retrieved],
-            "tool_calls": ["supplier_scorecard"],
-            "model_mode": "deterministic-demo",
+            "scored_product_ids": [item.product_id for item in candidates],
+            "verification_status_counts": dict(status_counts),
+            "tool_calls": ["sourcing_scorecard", "dataset_lookup"],
+            "model_mode": "remote" if llm_used else "deterministic-demo",
+            "dataset": "demo-synthetic" if store.is_demo else "imported",
         },
+        llm_used=llm_used,
+        llm_error=llm_error,
     )
+
+
+def build_warnings(candidates: list[Recommendation]) -> list[str]:
+    warnings: list[str] = []
+    if store.is_demo:
+        warnings.append(_DEMO_WARNING)
+    else:
+        warnings.append(WARNING_REAL_DILIGENCE)
+    if any(item.verification_status == "lead" for item in candidates):
+        warnings.append(WARNING_LEAD)
+    if any(item.verification_status == "pending_review" for item in candidates):
+        warnings.append(WARNING_PENDING)
+    return warnings
+
+
+def compose_answer(request: AskRequest, candidates: list[Recommendation]) -> tuple[bool, str | None, str]:
+    """优先让 LLM 生成受约束摘要；失败或 demo 模式则回落确定性模板。"""
+    if llm_enabled():
+        try:
+            summary = generate_summary(request.requirement, candidates)
+            answer = summary.answer
+            if summary.market_context:
+                answer = f"{answer}\n市场背景：{summary.market_context}"
+            return True, None, answer
+        except LLMError as exc:
+            return False, str(exc), _DEMO_ANSWER
+    return False, None, _DEMO_ANSWER

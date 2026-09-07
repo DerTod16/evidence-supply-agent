@@ -1,11 +1,13 @@
 [project]
-name = "evidence-supply-agent"
-version = "0.1.0"
-description = "Evidence-first supplier research agent with auditable recommendations."
+name = "evidence-sourcing-agent"
+version = "1.0.0"
+description = "Evidence-first sourcing agent for e-commerce sellers: auditable product sourcing candidates with server-side adjudicated scoring."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.30,<1",
+  "pydantic>=2.7,<3",
+  "httpx>=0.27,<1",
 ]
 
 [build-system]
@@ -24,3 +26,4 @@ dev = ["pytest>=8,<9", "httpx>=0.27,<1"]
 [tool.pytest.ini_options]
 pythonpath = ["apps/api"]
 testpaths = ["tests"]
+addopts = "--basetemp=.pytest-tmp"

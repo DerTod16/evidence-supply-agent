@@ -1,8 +1,27 @@
+# 环境与密钥
 .env
-.venv/
+.env.*
+!.env.example
+
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
+.venv/
+venv/
+build/
+dist/
 .pytest_cache/
-coverage.xml
-htmlcov/
+.pytest-tmp/
+.mypy_cache/
+.ruff_cache/
+
+# 工具
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 本地导入的真实货源资料（含敏感商业信息，禁止入库）
+data/
+*.local.json
