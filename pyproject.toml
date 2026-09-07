@@ -21,7 +21,7 @@ package-dir = {"" = "apps/api"}
 where = ["apps/api"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<9", "httpx>=0.27,<1"]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1"]
 
 [tool.pytest.ini_options]
 pythonpath = ["apps/api"]
